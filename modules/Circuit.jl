@@ -2,9 +2,11 @@ module Circuit
 
 using Compat
 using Yao, Yao.Blocks
+using Kernels
 import Yao.Blocks: dispatch!, blocks, mat, apply!, print_block
+import Base: gradient
 
-export QCBM, initialize!, layer
+export QCBM, initialize!, layer, parameters, entangler
 
 
 struct QCBM{N, NL, CT, T} <: CompositeBlock{N, T}
@@ -62,5 +64,62 @@ function initialize!(qcbm::QCBM)
     dispatch!(qcbm, params)
 end
 
+function parameters(qcbm::QCBM{N, NL}) where {N, NL}
+    params = zeros(real(datatype(qcbm)), nparameters(qcbm))
+    idx = 0
+    for ilayer = 1:2:(2 * NL + 1)
+        idx = parameters!(params, idx, qcbm.circuit[ilayer])
+    end
+    params
+end
+
+function parameters!(params, idx, layer::Roller)
+    count = idx
+    for each_line in layer
+        for each in each_line
+            params[count + 1] = each.theta
+            count += 1
+        end
+    end
+    count
+end
+
+function gradient(qcbm::QCBM{N, NL}, kernel, ptrain) where {N, NL}
+    prob = abs2.(statevec(qcbm()))
+    grad = zeros(real(datatyep(qcbm)), nparameters(qcbm))
+    idx = 0
+    for ilayer = 1:2:(2 * NL + 1)
+        idx = grad_layer!(grad, idx, prob, qcbm, qcbm.circuit[ilayer], kernel, ptrain)
+    end
+    grad
+end
+
+function grad_layer!(grad, idx, prob, qcbm, layer, kernel, ptrain)
+    count = idx
+    for each_line in layer
+        for each in each_line
+            gradient!(grad, count+1, prob, qcbm, each, kernel, ptrain)
+            count += 1
+        end
+    end
+    count
+end
+
+function gradient!(grad, idx, prob, qcbm, gate, kernel, ptrain)
+    dispatch!(+, gate, pi / 2)
+    prob_pos = abs2.(statevec(qcbm()))
+
+    dispatch!(-, gate, pi)
+    prob_neg = abs2.(statevec(qcbm()))
+
+    dispatch!(+, gate, pi / 2) # set back
+
+    grad_pos = Kernels.expect(kernel, prob, prob_pos) - Kernels.expect(kernel, prob, prob_neg)
+    grad_neg = Kernels.expect(kernel, ptrain, prob_pos) - Kernels.expect(kernel, ptrain, prob_neg)
+    grad[idx] = grad_pos - grad_neg
+    grad
+end
+
+loss(qcbm::QCBM, kernel, ptrain) = Kernels.loss(abs2.(statevec(qcbm())), kernel, ptrain)
 
 end
