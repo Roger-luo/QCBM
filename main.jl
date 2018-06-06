@@ -1,6 +1,6 @@
 include("load.jl")
 
-using Yao, Circuit, UnicodePlots, BenchmarkTools, GradOptim, Utils
+using Yao, Circuit, UnicodePlots, GradOptim, Utils, ArgParse
 
 function train!(qcbm::QCBM, ptrain, optim; learning_rate=0.1, maxiter=100)
     initialize!(qcbm)
@@ -23,7 +23,7 @@ function train!(qcbm::QCBM, ptrain, optim; learning_rate=0.1, maxiter=100)
 end
 
 
-function main(n, maxiter)
+function train(n, maxiter)
     pg = gaussian_pdf(n, 2^5-0.5, 2^4)
     fig = lineplot(0:1<<n - 1, pg)
     display(fig)
@@ -39,3 +39,15 @@ function main(n, maxiter)
     lineplot!(fig, p, color=:yellow, name="trained")
     display(fig)
 end
+
+function main()
+    n = parse(ARGS[1])
+    if length(ARGS) > 1
+        nitr = parse(ARGS[2])
+    else
+        nitr = 50
+    end
+    train(n, nitr)
+end
+
+main()
