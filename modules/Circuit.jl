@@ -3,10 +3,11 @@ __precompile__()
 module Circuit
 
 using Compat
-using Yao, Yao.Blocks
+using Yao, Yao.Blocks, Yao.LuxurySparse
 using Kernels
 import Yao.Blocks: dispatch!, blocks, mat, apply!, print_block
 import Base: gradient
+
 
 export QCBM, initialize!, layer, parameters, entangler, loss
 
@@ -123,5 +124,66 @@ function gradient!(grad, idx, prob, qcbm, gate, kernel, ptrain)
 end
 
 loss(qcbm::QCBM, kernel, ptrain) = Kernels.loss(abs2.(statevec(qcbm())), kernel, ptrain)
+
+
+
+
+############
+# RotBasis
+############
+
+import Yao.Blocks: _make_rot_mat, nparameters
+export RotBasis, rotbasis
+
+mutable struct RotBasis{T} <: PrimitiveBlock{1, Complex{T}}
+    theta::T
+    phi::T
+
+    function RotBasis(theta::T, phi::T) where T
+        new{T}(theta, phi)
+    end
+end
+
+rotbasis(::Type{T}) where T = RotBasis(zero(T), zero(T))
+rotbasis() = rotbasis(Float64)
+
+blocks(x::RotBasis) = blocks(x.c)
+copy(x::RotBasis) = RotBasis(x.theta, x.phi)
+(x::RotBasis)(r::AbstractRegister, params...) = apply!(r, x, params...)
+
+function mat(x::RotBasis{T}) where T
+    R1 = _make_rot_mat(IMatrix{2, Complex{T}}(), mat(Z), -x.phi)
+    R2 = _make_rot_mat(IMatrix{2, Complex{T}}(), mat(Y), -x.theta)
+    R2 * R1
+end
+
+function dispatch!(f::Function, R::RotBasis{T}, params) where T
+    R.theta = f(R.theta, params[1])
+    R.phi = f(R.phi, params[2])
+    R
+end
+
+nparameters(::RotBasis) = 2
+
+==(lhs::RotBasis, rhs::RotBasis) = false
+==(lhs::RotBasis{T}, rhs::RotBasis{T}) where T = (lhs.theta == rhs.theta) && (lhs.phi == rhs.phi)
+
+function hash(gate::RotBasis, h::UInt)
+    hashkey = hash(objectid(gate), h)
+    hashkey = hash(gate.theta, hashkey)
+    hashkey = hash(gate.phi, hashkey)
+    hashkey
+end
+
+function print_block(io::IO, x::RotBasis)
+    println(io, "rot basis:")
+    println(io, "  theta: ", x.theta)
+    print(io,   "  phi:   ", x.phi)
+end
+
+
+
+
+
 
 end

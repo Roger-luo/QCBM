@@ -1,6 +1,11 @@
+__precompile__()
+
+module __main__
+
 include("load.jl")
 
 using Yao, Circuit, UnicodePlots, GradOptim, Utils, ArgParse
+import Kernels
 
 function train!(qcbm::QCBM, ptrain, optim; learning_rate=0.1, maxiter=100)
     initialize!(qcbm)
@@ -50,4 +55,6 @@ function main()
     train(n, nitr)
 end
 
-main()
+end
+
+__main__.main()
