@@ -57,14 +57,26 @@ function update!(w, g, p::Adam)
     gclip!(g, p.gclip)
     if p.fstm===nothing; p.fstm=zeros(w); p.scndm=zeros(w); end
     p.t += 1
-    scale!(p.beta1, p.fstm)
-    axpy!(1-p.beta1, g, p.fstm)
-    scale!(p.beta2, p.scndm)
-    axpy!(1-p.beta2, g .* g, p.scndm)
+    BLAS.scale!(p.beta1, p.fstm)
+    BLAS.axpy!(1-p.beta1, g, p.fstm)
+    BLAS.scale!(p.beta2, p.scndm)
+    BLAS.axpy!(1-p.beta2, g .* g, p.scndm)
     fstm_corrected = p.fstm / (1 - p.beta1 ^ p.t)
     scndm_corrected = p.scndm / (1 - p.beta2 ^ p.t)
-    axpy!(-p.lr, (fstm_corrected ./ (sqrt.(scndm_corrected) + p.eps)), w)
+    BLAS.axpy!(-p.lr, (fstm_corrected ./ (sqrt.(scndm_corrected) + p.eps)), w)
 end
 
+function gclip!(g, gclip)
+    if gclip == 0
+        g
+    else
+        gnorm = vecnorm(g)
+        if gnorm <= gclip
+            g
+        else
+            BLAS.scale!(gclip/gnorm, g)
+        end
+    end
+end
 
 end

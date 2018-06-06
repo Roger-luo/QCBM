@@ -6,7 +6,7 @@ using Kernels
 import Yao.Blocks: dispatch!, blocks, mat, apply!, print_block
 import Base: gradient
 
-export QCBM, initialize!, layer, parameters, entangler
+export QCBM, initialize!, layer, parameters, entangler, loss
 
 
 struct QCBM{N, NL, CT, T} <: CompositeBlock{N, T}
@@ -86,7 +86,7 @@ end
 
 function gradient(qcbm::QCBM{N, NL}, kernel, ptrain) where {N, NL}
     prob = abs2.(statevec(qcbm()))
-    grad = zeros(real(datatyep(qcbm)), nparameters(qcbm))
+    grad = zeros(real(datatype(qcbm)), nparameters(qcbm))
     idx = 0
     for ilayer = 1:2:(2 * NL + 1)
         idx = grad_layer!(grad, idx, prob, qcbm, qcbm.circuit[ilayer], kernel, ptrain)
