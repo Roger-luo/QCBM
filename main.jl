@@ -2,7 +2,7 @@ __precompile__()
 
 module __main__
 
-include("load.jl")
+include("INCLUDEME.jl")
 
 using Yao, Circuit, UnicodePlots, GradOptim, Utils, ArgParse
 import Kernels
