@@ -1,3 +1,5 @@
+__precompile__()
+
 module Utils
 
 export gaussian_pdf, get_nn_pairs
