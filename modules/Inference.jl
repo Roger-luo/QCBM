@@ -1,4 +1,5 @@
 include("GroverSearch.jl")
+using Yao.Intrinsics
 # if basis[abs(locs)] == locs>0?1:0, then flip the sign.
 inference_oracle(locs) = control(locs[1:end-1], abs(locs[end])=>Z)
 
@@ -7,7 +8,7 @@ inference_oracle(locs) = control(locs[1:end-1], abs(locs[end])=>Z)
 ################################################
 target_space(oracle) = real(Diagonal(mat(oracle)).diag) .< 0
 
-function inference(psi::AbstractRegister, evidense::Vector{Int}, num_iter::Int)
+function inference1(psi::AbstractRegister, evidense::Vector{Int}, num_iter::Int)
     oracle = inference_oracle(evidense)(nqubits(psi))
     ts = target_space(oracle)
     rv1 = Reflect(copy(psi))
@@ -20,29 +21,20 @@ function inference(psi::AbstractRegister, evidense::Vector{Int}, num_iter::Int)
     psi
 end
 
-# the second version
-
-function test_inference()
-    # test inference
-    num_bit = 12
-    psi0 = rand_state(num_bit)
-    #psi0 = uniform_state(num_bit)
-    evidense = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-    #evidense = collect(1:num_bit)
-
+function run_inference(psi, evidense)
     # the desired subspace
-    basis = collect(UInt, 0:1<<num_bit-1)
-    subinds = indices_with(num_bit, abs.(evidense), UInt.(evidense.>0), basis)
+    subinds = indices_with(nqubits(psi), abs.(evidense), Int.(evidense.>0))
 
-    v_desired = statevec(psi0)[subinds+1]
+    v_desired = statevec(psi)[subinds+1]
     p = norm(v_desired)^2
     v_desired[:] ./= sqrt(p)
 
     # search the subspace
     num_iter = num_grover_step(p)
     println("Estimated num_step = ", pi/4/sqrt(p))
-    psi = inference(psi0, evidense, num_iter)
-    println((psi.state[subinds+1]'*v_desired) |> abs2)
+    inference1(psi, evidense, num_iter)
+    fidelity = (psi.state[subinds+1]'*v_desired) |> abs
+    fidelity
 end
 
-test_inference()
+# the second version

@@ -1,5 +1,5 @@
 using Compat.Test
-include("BarStripes.jl")
+include("../dataset/BarStripes.jl")
 
 @testset "barstripes" begin
     @test size(binary_basis(2,2)) == (2,2,16)

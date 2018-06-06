@@ -70,7 +70,7 @@ include("INCLUDEME.jl")
 using Yao, Circuit, UnicodePlots, GradOptim, Utils, ArgParse
 import Kernels
 
-function train!(qcbm::QCBM{N}, target::AbstractRegister, optim; iter=10, monitor=100) where N
+function train!(qcbm::QCBM{N}, target0::AbstractRegister, optim; iter=10, monitor=100) where N
     initialize!(qcbm)
     kernel = Kernels.RBFKernel(nqubits(qcbm), [2.0], false)
     rot = roll(N, rotbasis())
@@ -81,7 +81,7 @@ function train!(qcbm::QCBM{N}, target::AbstractRegister, optim; iter=10, monitor
 
     for i = 1:iter
         dispatch!(rot, pi * rand(2 * N))
-        rot(target)
+        target = rot(copy(target0))
 
         ptrain = abs2.(statevec(target))
         grad = gradient(qcbm, kernel, ptrain)

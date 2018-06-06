@@ -1,6 +1,6 @@
 using Compat.Test
 include("../Inference.jl")
-include("../wavefunctions/continuous.jl")
+include("../dataset/wavefunctions.jl")
 
 @testset "Grover Search" begin
     # alway use sorted CSC format.
