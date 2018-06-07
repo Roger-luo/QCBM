@@ -1,7 +1,4 @@
 # Quantum Circuit Born Machine
 
 ## Usage
-
-```sh
-$ julia main.jl nqubits [niters]
-```
+see `problearning.ipynb` and `wflearning.ipynb`.
