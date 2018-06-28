@@ -5,7 +5,7 @@ module GradOptim
 using Compat
 using Compat.LinearAlgebra.BLAS
 
-export Adam, update!
+export Adam, update!, iRProp
 
 """
     Adam(;lr=0.001, gclip=0, beta1=0.9, beta2=0.999, eps=1e-8)
@@ -81,4 +81,32 @@ function gclip!(g, gclip)
     end
 end
 
+mutable struct iRProp{T}
+    eta_pos::T
+    eta_neg::T
+    dmax::T
+    dmin::T
+    d0::T
+    gpre::Vector{T}
+    Δ::Vector{T}
+    iRProp(eta_pos::T, eta_neg::T; d0=1.5e-3π, dmin=1e-6π, dmax=6e-3π) where T = new{T}(eta_pos, eta_neg, dmax, dmin, d0)
 end
+
+function update!(w, g, p::iRProp{T}) where T
+    N = length(g)
+    if !isdefined(p, :gpre)
+        p.gpre = zeros(T, N)
+        p.Δ = p.d0*ones(T, N)
+    end
+    sgn = sign.(g.*p.gpre)
+    posmask = sgn .> 0
+    negmask = sgn .< 0
+    p.Δ[posmask] = min.(p.eta_pos.*p.Δ[posmask], p.dmax)
+    p.Δ[negmask] = max.(p.eta_neg.*p.Δ[negmask], p.dmin)
+
+    p.gpre[:] = g
+    p.gpre[negmask] = 0
+
+    w[:] .-= sign.(p.gpre).*p.Δ
+end
+
