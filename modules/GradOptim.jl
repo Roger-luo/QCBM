@@ -110,3 +110,4 @@ function update!(w, g, p::iRProp{T}) where T
     w[:] .-= sign.(p.gpre).*p.Δ
 end
 
+end

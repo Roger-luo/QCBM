@@ -8,13 +8,6 @@ using Yao.Blocks
 
 using QCGANS, GradOptim
 
-"""
-gradient of v-statistics.
-"""
-function vstat_grad(witness::Vector, circuit::AbstractBlock, reg0::AbstractRegister, gates::Vector{RotationGate})
-    gradient((rpos, rneg)->((rpos.state - rneg.state)'*witness)[], circuit, reg0, gates)
-end
-
 function train(qcg::QCGAN{N}, g_learning_rate::Real, d_learning_rate::Real, niter::Int, ninner::Int) where N
     for i in 1:niter
         ggrad, dgrad = gradient(qcg)
@@ -56,14 +49,43 @@ function train!(qcg::QCGAN{N}, optim, niter::Int) where N
     end
 end
 
+
+function train_alter(qcg::QCGAN{N}, g_learning_rate::Real, d_learning_rate::Real, niter::Int) where N
+    for i in 1:niter
+        ggrad, dgrad = gradient(qcg)
+        lossval = loss(qcg)()
+        if lossval == 0
+            dispatch!(+, qcg.generator, -ggrad.*g_learning_rate)
+        else
+            ggrad, dgrad = gradient(qcg)
+            dispatch!(-, qcg.discriminator, -dgrad.*d_learning_rate)
+        end
+        #print("dist = $(tracedist(qcg))")
+        println("loss = $(lossval)")
+    end
+end
+# TODO using an ideal discriminator!
+disc(b) = b in [0, 3, 5, 10, 12, 15]
+function train(qcg::QCGAN{N}, g_learning_rate::Real, niter::Int, ninner::Int) where N
+    for i in 1:niter
+        ggrad, dgrad = gradient(qcg)
+        dispatch!(+, qcg.generator, -ggrad.*g_learning_rate)
+        print("dist = $(tracedist(qcg))")
+        println("loss = $(loss(qcg)())")
+    end
+end
+
+
 using BenchmarkTools
-pairs_gen = [1=>2, 2=>3]
-pairs_dis = [1=>2, 2=>3, 3=>4]
+pairs_gen = [1=>2, 2=>3, 3=>1]
+pairs_dis = [1=>2, 2=>3, 3=>4, 4=>1]
 qcg = qcgan(uniform_state(3), 5, 5, pairs_gen, pairs_dis)
-optim = iRprop(2.0, 0.5);
-optim_inner = Adam(lr=0.1);
-train(qcg, optim, optim_inner, 200, 1)
-train(qcg, 0.0, 0.5, 20, 1)
+qcg.target.state = copy(qcg.reg0) |> qcg.generator |> state
+optim = iRProp(2.0, 0.5);
+optim_inner = iRProp(2.0, 0.5);
+train(qcg, optim, optim_inner, 200, 20)
+train(qcg, 0.2, 0.5, 200, 1)
+train_alter(qcg, 0.2, 0., 200)
 optim = iRProp(2.0, 0.5)
 train!(qcg, optim, 200)
 
