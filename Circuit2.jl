@@ -1,16 +1,5 @@
-__precompile__()
-
-module Circuit
-
 using Compat
-using Yao, Yao.Blocks, Yao.LuxurySparse
-using Kernels
-import Yao.Blocks: dispatch!, blocks, mat, apply!, print_block
-import Base: gradient
-
-
-export QCBM, initialize!, layer, parameters, entangler, loss
-
+using Yao, Yao.Blocks
 
 struct QCBM{N, NL, CT, T} <: CompositeBlock{N, T}
     circuit::CT
@@ -32,43 +21,28 @@ struct QCBM{N, NL, CT, T} <: CompositeBlock{N, T}
     end
 end
 
-function entangler(pairs)
-    chain(
-        control([ctrl, ], target=>X) for (ctrl, target) in pairs
-    )
-end
+entangler(pairs) = chain(control([ctrl, ], target=>X) for (ctrl, target) in pairs)
 
 layer(x::Symbol) = layer(Val(x))
 layer(::Val{:first}) = rollrepeat(chain(Rx(0.0), Rz(0.0)))
 layer(::Val{:last}) = rollrepeat(chain(Rz(0.0), Rx(0.0)))
 layer(::Val{:mid}) = rollrepeat(chain(Rz(0.0), Rx(0.0), Rz(0.0)))
 
-
-(x::QCBM)(args...) = x.circuit(args...)
-
-function (x::QCBM{N})(nbatch::Int=1) where N
-    apply!(zero_state(N, nbatch), x.circuit)
-end
-
-function apply_zero(c, nbatch::Int=1)
-    apply!(zero_state(nqubits(c), nbatch), c)
-end
+import Yao.Blocks: apply!, blocks
+apply!(r::AbstractRegister, blk::QCBM) = apply!(r, blk.circuit)
+blocks(blk::QCBM) = blocks(blk.circuit)
 
 function print_block(io::IO, qcbm::QCBM)
     printstyled(io, "QCBM"; bold=true, color=:red)
 end
 
-# forward some composite block's methods
-dispatch!(f::Function, qcbm::QCBM, params...) = (dispatch!(f, qcbm.circuit, params...); qcbm)
-dispatch!(qcbm::QCBM, params...) = (dispatch!(qcbm.circuit, params...); qcbm)
-
-mat(qcbm::QCBM) = mat(qcbm.circuit)
-apply!(r::AbstractRegister, qcbm::QCBM) = apply!(r, qcbm.circuit)
-blocks(qcbm::QCBM) = blocks(qcbm.circuit)
-
 function initialize!(qcbm::QCBM)
     params = 2pi * rand(nparameters(qcbm))
     dispatch!(qcbm, params)
+end
+
+function (x::QCBM{N})(nbatch::Int=1) where N
+    apply!(zero_state(N, nbatch), x.circuit)
 end
 
 function gradient(qcbm::QCBM{N, NL}, kernel, ptrain) where {N, NL}
@@ -94,10 +68,10 @@ end
 
 function gradient!(grad, idx, prob, qcbm, gate, kernel, ptrain)
     dispatch!(+, gate, pi / 2)
-    prob_pos = abs2.(statevec(apply_zero(qcbm)))
+    prob_pos = abs2.(statevec(qcbm()))
 
     dispatch!(-, gate, pi)
-    prob_neg = abs2.(statevec(apply_zero(qcbm)))
+    prob_neg = abs2.(statevec(qcbm()))
 
     dispatch!(+, gate, pi / 2) # set back
 
@@ -107,6 +81,8 @@ function gradient!(grad, idx, prob, qcbm, gate, kernel, ptrain)
     grad
 end
 
-loss(qcbm::QCBM, kernel, ptrain) = Kernels.loss(abs2.(statevec(qcbm())), kernel, ptrain)
 
-end
+qcbm = QCBM{4, 5}([1=>2, 2=>3, 3=>4, 4=>1])
+nparameters(qcbm)
+initialize!(qcbm)
+dispatch!(-, qcbm, 1:64)
