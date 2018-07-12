@@ -1,7 +1,7 @@
 include("INCLUDEME.jl")
 
 using Compat
-using Yao, Kernels, Utils, Yao.Zoo, GradOptim
+using Yao, Kernels, Utils, Yao.Zoo, GradOptim, UnicodePlots
 
 ################################################################################
 #                           Define Circuit
@@ -103,40 +103,50 @@ loss(c::OhMyBM, kernel, ptrain) = Kernels.loss(probs(apply_zero(c)), kernel, ptr
 
 ################################################################################
 
-function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=200)
+function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=200, nbatch=10)
     initialize!(c)
     kernel = Kernels.RBFKernel(nqubits(bm), [0.25], false)
     history = Float64[]
 
+    batch_grad = zeros(nparameters(c))
     for i = 1:maxiter
-        change_basis!(c)
-        ptrain = probs(apply!(copy(psi), c.basis))
-        grad = gradient(c, kernel, ptrain)
-        curr_loss = loss(c, kernel, ptrain)
+        fill!(batch_grad, 0)
+        curr_loss = 0
+
+        for m = 1:nbatch
+            change_basis!(c)
+            ptrain = probs(apply!(copy(psi), c.basis))
+            curr_loss += loss(c, kernel, ptrain)
+            grad = gradient(c, kernel, ptrain)
+            batch_grad += grad
+        end
+        batch_grad ./= nbatch
+        curr_loss /= nbatch
         push!(history, curr_loss)
         println(i, " step, loss = ", curr_loss)
 
         params = collect(parameters(c))
-        update!(params, grad, optim)
+        update!(params, batch_grad, optim)
         dispatch!(c, params)
     end
     history
 end
 
 # set up constants
-const n = 9
-const nlayers = 2
+const n = 6
+const nlayers = 5
 # set up machine
 bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
 initialize!(bm)
 
 # set target state
-r = register(bit"0"^n) + register(bit"1"^n)
+# r = register(bit"0"^n) + register(bit"1"^n)
 r = rand_state(n)
 normalize!(r)
 
 # set up optimizer
 optim = Adam(lr=0.1);
+his = train!(bm, r, optim)
 
-train!(bm, r, optim)
+display(lineplot(his, title = "loss"))
 println(fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r))
