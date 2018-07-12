@@ -1,7 +1,7 @@
 include("INCLUDEME.jl")
 
 using Compat
-using Yao, Kernels, Utils, Yao.Zoo, GradOptim, UnicodePlots
+using Yao, Kernels, Utils, Yao.Zoo, GradOptim, UnicodePlots, JLD2
 
 ################################################################################
 #                           Define Circuit
@@ -132,21 +132,28 @@ function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=200, nbatch=10
     history
 end
 
-# set up constants
-const n = 6
-const nlayers = 5
-# set up machine
-bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
-initialize!(bm)
+function main(n, nlayers)
+    # set up machine
+    bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
+    initialize!(bm)
 
-# set target state
-# r = register(bit"0"^n) + register(bit"1"^n)
-r = rand_state(n)
-normalize!(r)
+    # set target state
+    # r = register(bit"0"^n) + register(bit"1"^n)
+    r = rand_state(n)
+    normalize!(r)
 
-# set up optimizer
-optim = Adam(lr=0.1);
-his = train!(bm, r, optim)
+    # set up optimizer
+    optim = Adam(lr=0.1);
 
-display(lineplot(his, title = "loss"))
-println(fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r))
+    histories = []
+    fidelities = []
+
+    for i = 1:100
+        push!(histories, train!(bm, r, optim))
+        push!(fidelities, fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r))
+    end
+
+    @save "wflearning.jld2" histories fidelities
+end
+
+main(6, 5)
