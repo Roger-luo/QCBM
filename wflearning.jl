@@ -139,7 +139,7 @@ function main(n, nlayers; nbatch=50, nsamples=100)
     histories = []
     fidelities = []
 
-    for i = 1:nsamples
+    @parallel for i = 1:nsamples
         # set up machine
         bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
         initialize!(bm)
