@@ -103,7 +103,7 @@ loss(c::OhMyBM, kernel, ptrain) = Kernels.loss(probs(apply_zero(c)), kernel, ptr
 
 ################################################################################
 
-function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=100)
+function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=200)
     initialize!(c)
     kernel = Kernels.RBFKernel(nqubits(bm), [0.25], false)
     history = Float64[]
@@ -111,29 +111,32 @@ function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=100)
     for i = 1:maxiter
         change_basis!(c)
         ptrain = probs(apply!(copy(psi), c.basis))
-        for k = 1:10
-            grad = gradient(c, kernel, ptrain)
-            curr_loss = loss(c, kernel, ptrain)
-            push!(history, curr_loss)
-            println(i, " step, loss = ", curr_loss)
+        grad = gradient(c, kernel, ptrain)
+        curr_loss = loss(c, kernel, ptrain)
+        push!(history, curr_loss)
+        println(i, " step, loss = ", curr_loss)
 
-            params = collect(parameters(c))
-            update!(params, grad, optim)
-            dispatch!(c, params)
-        end
+        params = collect(parameters(c))
+        update!(params, grad, optim)
+        dispatch!(c, params)
     end
     history
 end
 
+# set up constants
+const n = 9
+const nlayers = 2
 # set up machine
-bm = OhMyBM{4, 2}([1=>2, 2=>3, 3=>4, 4=>1])
+bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
 initialize!(bm)
 
 # set target state
-r = register(bit"0000") + register(bit"1111")
+r = register(bit"0"^n) + register(bit"1"^n)
+r = rand_state(n)
 normalize!(r)
 
 # set up optimizer
 optim = Adam(lr=0.1);
 
 train!(bm, r, optim)
+println(fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r))
