@@ -105,7 +105,7 @@ loss(c::OhMyBM, kernel, ptrain) = Kernels.loss(probs(apply_zero(c)), kernel, ptr
 
 function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=200, nbatch=10)
     initialize!(c)
-    kernel = Kernels.RBFKernel(nqubits(bm), [0.25], false)
+    kernel = Kernels.RBFKernel(nqubits(c), [0.25], false)
     history = Float64[]
 
     batch_grad = zeros(nparameters(c))
@@ -132,28 +132,28 @@ function train!(c::OhMyBM, psi, optim; learning_rate=0.1, maxiter=200, nbatch=10
     history
 end
 
-function main(n, nlayers)
-    # set up machine
-    bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
-    initialize!(bm)
-
-    # set target state
-    # r = register(bit"0"^n) + register(bit"1"^n)
-    r = rand_state(n)
-    normalize!(r)
-
+function main(n, nlayers; nbatch=50, nsamples=100)
     # set up optimizer
     optim = Adam(lr=0.1);
 
     histories = []
     fidelities = []
 
-    for i = 1:100
-        push!(histories, train!(bm, r, optim))
+    for i = 1:nsamples
+        # set up machine
+        bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
+        initialize!(bm)
+
+        # set target state
+        # r = register(bit"0"^n) + register(bit"1"^n)
+        r = rand_state(n)
+        normalize!(r)
+
+        push!(histories, train!(bm, r, optim, nbatch=nbatch))
         push!(fidelities, fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r))
     end
 
     @save "wflearning.jld2" histories fidelities
 end
 
-main(6, 5)
+main(6, 5, nbatch=50, nsamples=100)
