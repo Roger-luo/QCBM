@@ -1,11 +1,11 @@
-# We explore the depth and fidelity here
+# We explore the batch and fidelity here
 
-include("../INCLUDEME.jl")
+@everywhere include("../INCLUDEME.jl")
 
-using WFLearning
+@everywhere using WFLearning
 
-function main(n; nbatch=20, epochs=200, learning_rate=0.1)
-    pmap(nlayers->task("depth.jld2", n, nlayers, nbatch, epochs, learning_rate), 2:20)
+@everywhere function main(n; nbatch=20, epochs=200, learning_rate=0.1)
+    pmap(nlayers->task("layers", n, nlayers, nbatch, epochs, learning_rate), 5:15)
 end
 
-main(6, nbatch=10, epochs=200, learning_rate=0.1)
+main(6, nbatch=20, epochs=200, learning_rate=0.1)
