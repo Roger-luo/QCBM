@@ -51,41 +51,22 @@ end
 
 ################################################################################
 #                               Gradients
-
-function gradient(c::OhMyBM{N, NL}, kernel, ptrain) where {N, NL}
-    grad = zeros(real(datatype(c)), nparameters(c))
-    p = probs(apply_zero(c))
-    idx = 0
-    for ilayer = 1:2:(2 * NL + 1)
-        idx = grad_layer!(grad, idx, p, c, c.circuit[ilayer], kernel, ptrain)
-    end
-    grad
+function gradient(c::OhMyBM, rots::Vector, prob, kernel, ptrain)
+    map(gate->gradient(c, gate, prob, kernel, ptrain), rots)
 end
 
-function grad_layer!(grad, idx, prob, qcbm, layer, kernel, ptrain)
-    count = idx
-    for each_line in blocks(layer)
-        for each in blocks(each_line)
-            gradient!(grad, count+1, prob, qcbm, each, kernel, ptrain)
-            count += 1
-        end
-    end
-    count
-end
-
-function gradient!(grad, idx, prob, qcbm, gate, kernel, ptrain)
+function gradient(c::OhMyBM, gate, prob, kernel, ptrain)
     dispatch!(+, gate, pi / 2)
-    prob_pos = probs(apply_zero(qcbm))
+    prob_pos = probs(apply_zero(c))
 
     dispatch!(-, gate, pi)
-    prob_neg = probs(apply_zero(qcbm))
+    prob_neg = probs(apply_zero(c))
 
-    dispatch!(+, gate, pi / 2) # set back
+    dispatch!(+, gate, pi / 2)
 
     grad_pos = Kernels.expect(kernel, prob, prob_pos) - Kernels.expect(kernel, prob, prob_neg)
     grad_neg = Kernels.expect(kernel, ptrain, prob_pos) - Kernels.expect(kernel, ptrain, prob_neg)
-    grad[idx] = grad_pos - grad_neg
-    grad
+    grad_pos - grad_neg
 end
 
 loss(c::OhMyBM, kernel, ptrain) = Kernels.loss(probs(apply_zero(c)), kernel, ptrain)
@@ -97,6 +78,8 @@ function train!(c::OhMyBM, psi, optim; learning_rate=0.1, epochs=200, nbatch=10)
     kernel = Kernels.RBFKernel(nqubits(c), [0.25], false)
     history = Float64[]
 
+    itr = Iterators.filter(x->(hasparameter(x) && isprimitive(x)), BlockTreeIterator(:DFS, c))
+    rots = collect(itr)
     batch_grad = zeros(nparameters(c))
     for i = 1:epochs
         fill!(batch_grad, 0)
@@ -105,8 +88,9 @@ function train!(c::OhMyBM, psi, optim; learning_rate=0.1, epochs=200, nbatch=10)
         for m = 1:nbatch
             change_basis!(c)
             ptrain = probs(apply!(copy(psi), c.basis))
+            prob = probs(apply_zero(c))
             curr_loss += loss(c, kernel, ptrain)
-            grad = gradient(c, kernel, ptrain)
+            grad = gradient(c, rots, prob, kernel, ptrain)
             batch_grad += grad
         end
         batch_grad ./= nbatch
@@ -121,7 +105,17 @@ function train!(c::OhMyBM, psi, optim; learning_rate=0.1, epochs=200, nbatch=10)
     history
 end
 
-function task(id, n, nlayers, nbatch, epochs, learning_rate)
+struct TrainData
+    n::Int
+    nlayers::Int
+    nbatch::Int
+    epochs::Int
+    learning_rate::Float64
+    history::Vector{Float64}
+    fidelity::Float64
+end
+
+function task(filename, n, nlayers, nbatch, epochs, learning_rate)
     # set up machine
     bm = OhMyBM{n, nlayers}([(i%n + 1)=>((i+1)%n + 1) for i = 1:n])
     initialize!(bm)
@@ -134,14 +128,12 @@ function task(id, n, nlayers, nbatch, epochs, learning_rate)
     normalize!(r)
     his = train!(bm, r, optim, nbatch=nbatch, epochs=epochs, learning_rate=learning_rate)
     fs = fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r)
-    his, fs
+    data = TrainData(n, nlayers, nbatch, epochs, learning_rate, his, fs[1])
+    jldopen("data/$filename.jld2", "a+") do file
+        file["$n/$nlayers/$nbatch/$epochs/$learning_rate"] = data
+    end
 end
 
-function main(n, nlayers; nbatch=20, nsamples=100, epochs=200, learning_rate=0.1)
-    out = pmap(id->task(id, n, nlayers, nbatch, epochs, learning_rate), 1:nsamples)
-    @save "wflearning.jld2" out
-end
-
-export main
+export task
 
 end
