@@ -6,7 +6,7 @@ using Yao, Kernels, Utils, Yao.Zoo, GradOptim, UnicodePlots, JLD2
 ################################################################################
 #                           Define Circuit
 
-using Yao, Yao.Blocks, Yao.LuxurySparse
+using Yao, Yao.Blocks, Yao.LuxurySparse, Yao.Zoo
 import Yao.Blocks: blocks, apply!, print_block
 import Base: gradient
 import Kernels: loss
@@ -19,18 +19,7 @@ struct OhMyBM{N, NL, CT, T, Basis <: AbstractBlock} <: CompositeBlock{N, T}
     basis::Basis
 
     function OhMyBM{N, NL}(pairs) where {N, NL}
-        circuit = chain(N)
-
-        push!(circuit, layer(:first))
-
-        for i = 1:(NL - 1)
-            push!(circuit, cache(entangler(pairs)))
-            push!(circuit, layer(:mid))
-        end
-
-        push!(circuit, cache(entangler(pairs)))
-        push!(circuit, layer(:last))
-
+        circuit = diff_circuit(N, NL, pairs)
         basis = rot_basis(N)
         new{N, NL, typeof(circuit), datatype(circuit), typeof(basis)}(circuit, basis)
     end

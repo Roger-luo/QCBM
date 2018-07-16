@@ -39,9 +39,11 @@ function entangler(pairs)
 end
 
 layer(x::Symbol) = layer(Val(x))
-layer(::Val{:first}) = rollrepeat(chain(Rx(0.0), Rz(0.0)))
-layer(::Val{:last}) = rollrepeat(chain(Rz(0.0), Rx(0.0)))
-layer(::Val{:mid}) = rollrepeat(chain(Rz(0.0), Rx(0.0), Rz(0.0)))
+# layer(::Val{:first}) = chain(n, put(i=>chain(Rx(0.0), Rz(0.0)) for i=1:n))
+
+# layer(::Val{:first}) = rollrepeat(chain(Rx(0.0), Rz(0.0)))
+# layer(::Val{:last}) = rollrepeat(chain(Rz(0.0), Rx(0.0)))
+# layer(::Val{:mid}) = rollrepeat(chain(Rz(0.0), Rx(0.0), Rz(0.0)))
 
 
 (x::QCBM)(args...) = x.circuit(args...)
