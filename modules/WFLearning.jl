@@ -112,7 +112,7 @@ struct TrainData
     epochs::Int
     learning_rate::Float64
     history::Vector{Float64}
-    fidelity::Float64
+    fidelity::Vector{Float64}
 end
 
 function task(filename, n, nlayers, nbatch, epochs, learning_rate)
@@ -129,11 +129,16 @@ function task(filename, n, nlayers, nbatch, epochs, learning_rate)
     his = train!(bm, r, optim, nbatch=nbatch, epochs=epochs, learning_rate=learning_rate)
     fs = fidelity(apply!(zero_state(nqubits(bm)), bm.circuit), r)
     data = TrainData(n, nlayers, nbatch, epochs, learning_rate, his, fs[1])
+end
+
+function ptask(filename, n, nlayers, nbatch, epochs, learning_rate; nsamples=100)
+    data = pmap(x->task(filename, n, nlayers, nbatch, epochs, learning_rate), 1:nsamples)
+
     jldopen("data/$filename.jld2", "a+") do file
         file["$n/$nlayers/$nbatch/$epochs/$learning_rate"] = data
     end
 end
 
-export task
+export task, ptask
 
 end
