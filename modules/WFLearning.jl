@@ -112,7 +112,7 @@ struct TrainData
     epochs::Int
     learning_rate::Float64
     history::Vector{Float64}
-    fidelity::Vector{Float64}
+    fidelity::Float64
 end
 
 function task(filename, n, nlayers, nbatch, epochs, learning_rate)
